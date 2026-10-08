@@ -1,0 +1,62 @@
+name: Laravel CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  laravel-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: sqlite
+      DB_DATABASE: ${{ github.workspace }}/database/ci.sqlite
+      SESSION_DRIVER: array
+      CACHE_STORE: array
+      QUEUE_CONNECTION: sync
+      HASH_DRIVER: bcrypt
+      BCRYPT_ROUNDS: 4
+      HASH_VERIFY: false
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v6
+
+      - name: Install PHP and Composer
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, dom, fileinfo, pdo_sqlite, sqlite3
+          tools: composer:v2
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+
+          if [ -f .env.testing.example ]; then
+            cp .env.testing.example .env.testing
+          else
+            cp .env .env.testing
+          fi
+
+          php artisan key:generate --env=testing
+
+          php artisan config:clear
+
+          touch database/ci.sqlite
+
+          php artisan migrate:fresh --force --env=testing
+
+      - name: Run Laravel tests
+        run: php artisan test
+
